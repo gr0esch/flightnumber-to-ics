@@ -19,7 +19,7 @@ export interface ICSFlightData {
   status?: string;
 }
 
-function localTimeToDate(localTimeStr: string, timezone: string): Date {
+function localTimeToUTC(localTimeStr: string, timezone: string): Date {
   const [datePart, timePart] = localTimeStr.split("T");
   if (!datePart || !timePart) {
     return new Date(localTimeStr);
@@ -28,37 +28,19 @@ function localTimeToDate(localTimeStr: string, timezone: string): Date {
   const [year, month, day] = datePart.split("-").map(Number);
   const [hours, minutes] = timePart.split(":").map(Number);
 
-  const utcDate = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+  const refUTC = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 
-  const formatter = new Intl.DateTimeFormat("en-US", {
+  const tzHourStr = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
-    hour12: false,
+    hourCycle: "h23",
     hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-  });
+  }).format(refUTC);
 
-  const utcFormatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    hour12: false,
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-  });
+  const tzHour = parseInt(tzHourStr, 10);
+  const offsetHours = tzHour - 12;
 
-  const tzParts = formatter.formatToParts(utcDate);
-  const utcParts = utcFormatter.formatToParts(utcDate);
-
-  const tzHour = parseInt(tzParts.find((p) => p.type === "hour")?.value || "0", 10);
-  const utcHour = parseInt(utcParts.find((p) => p.type === "hour")?.value || "0", 10);
-
-  let offsetHours = tzHour - utcHour;
-  if (offsetHours > 12) offsetHours -= 24;
-  if (offsetHours < -12) offsetHours += 24;
-
-  const correctUTC = new Date(utcDate.getTime() - offsetHours * 60 * 60 * 1000);
-
-  return correctUTC;
+  const localAsUTC = Date.UTC(year, month - 1, day, hours, minutes);
+  return new Date(localAsUTC - offsetHours * 60 * 60 * 1000);
 }
 
 export function generateICS(data: ICSFlightData): string {
@@ -67,8 +49,8 @@ export function generateICS(data: ICSFlightData): string {
     prodId: "-//Flight ICS Generator//EN",
   });
 
-  const depTime = localTimeToDate(data.departure.time, data.departure.timezone);
-  const arrTime = localTimeToDate(data.arrival.time, data.arrival.timezone);
+  const depTime = localTimeToUTC(data.departure.time, data.departure.timezone);
+  const arrTime = localTimeToUTC(data.arrival.time, data.arrival.timezone);
 
   const description = [
     `Flight: ${data.flightNumber}`,

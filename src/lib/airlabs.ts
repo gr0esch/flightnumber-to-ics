@@ -117,36 +117,38 @@ export async function getFlightInfo(
     }
   }
 
-  const source = schedule || flight;
+  const depTimezone = flight.dep_timezone || "UTC";
+  const arrTimezone = flight.arr_timezone || "UTC";
 
-  const depTimezone = source.dep_timezone || flight.dep_timezone || "UTC";
-  const arrTimezone = source.arr_timezone || flight.arr_timezone || "UTC";
-
-  const depScheduledTime = source.dep_time || source.dep_scheduled || flight.dep_time || flight.dep_scheduled || "";
-  const arrScheduledTime = source.arr_time || source.arr_scheduled || flight.arr_time || flight.arr_scheduled || "";
+  const depScheduledTime = schedule
+    ? schedule.dep_time || schedule.dep_scheduled || flight.dep_time || flight.dep_scheduled || ""
+    : flight.dep_time || flight.dep_scheduled || "";
+  const arrScheduledTime = schedule
+    ? schedule.arr_time || schedule.arr_scheduled || flight.arr_time || flight.arr_scheduled || ""
+    : flight.arr_time || flight.arr_scheduled || "";
 
   const depDate = schedule ? schedule.dep_date || date : date;
-  const arrDate = computeArrivalDate(depDate, depScheduledTime, arrScheduledTime, source.duration || flight.duration);
+  const arrDate = computeArrivalDate(depDate, depScheduledTime, arrScheduledTime, schedule?.duration || flight.duration);
 
   return {
     flightNumber: flight.flight_iata || flightNumber,
     airline: {
-      name: flight.airline_name || source.airline_name || "",
-      iata: flight.airline_iata || source.airline_iata || "",
-      icao: flight.airline_icao || source.airline_icao || "",
+      name: flight.airline_name || "",
+      iata: flight.airline_iata || "",
+      icao: flight.airline_icao || "",
     },
     departure: {
-      airport: flight.dep_name || source.dep_name || "",
-      iata: flight.dep_iata || source.dep_iata || "",
-      icao: flight.dep_icao || source.dep_icao || "",
+      airport: flight.dep_name || "",
+      iata: flight.dep_iata || "",
+      icao: flight.dep_icao || "",
       scheduledTime: depScheduledTime,
       timezone: depTimezone,
       localDateTime: buildLocalDateTime(depDate, depScheduledTime),
     },
     arrival: {
-      airport: flight.arr_name || source.arr_name || "",
-      iata: flight.arr_iata || source.arr_iata || "",
-      icao: flight.arr_icao || source.arr_icao || "",
+      airport: flight.arr_name || "",
+      iata: flight.arr_iata || "",
+      icao: flight.arr_icao || "",
       scheduledTime: arrScheduledTime,
       timezone: arrTimezone,
       localDateTime: buildLocalDateTime(arrDate, arrScheduledTime),
@@ -159,7 +161,7 @@ export async function getFlightInfo(
         }
       : undefined,
     status: flight.status || "scheduled",
-    duration: source.duration || flight.duration || undefined,
+    duration: schedule?.duration || flight.duration || undefined,
   };
 }
 
