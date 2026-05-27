@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - AIRLABS_API_KEY=${AIRLABS_API_KEY}
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - flight-ics-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+    networks:
+      - flight-ics-network
+
+networks:
+  flight-ics-network:
+    driver: bridge
