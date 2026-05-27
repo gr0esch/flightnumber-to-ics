@@ -143,9 +143,31 @@ export default function Home() {
           </div>
         )}
 
-        <footer className="mt-16 text-center">
+        <footer className="mt-16 text-center space-y-2">
           <p className="text-xs text-muted-foreground font-mono-alt">
             Powered by AirLabs API
+          </p>
+          <p className="text-xs text-muted-foreground font-mono-alt">
+            © 2026
+            <span className="mx-2">·</span>
+            Built by{" "}
+            <a
+              href="https://www.groes.ch/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline-offset-2 hover:underline hover:text-foreground transition-colors"
+            >
+              Samuel Groesch
+            </a>
+            <span className="mx-2">·</span>
+            <a
+              href="https://samuelgroesch.de/impressum/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline-offset-2 hover:underline hover:text-foreground transition-colors"
+            >
+              Imprint
+            </a>
           </p>
         </footer>
       </div>
