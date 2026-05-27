@@ -14,8 +14,8 @@ services:
       - "traefik.http.routers.flight-ics.tls.certresolver=${TRAEFIK_CERTRESOLVER:-myresolver}"
       - "traefik.http.services.flight-ics.loadbalancer.server.port=3000"
     networks:
-      - traefik-network
+      - proxy
 
 networks:
-  traefik:
+  proxy:
     external: true

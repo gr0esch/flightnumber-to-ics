@@ -55,11 +55,14 @@ export async function getFlightInfo(
     throw new Error(data.error.message || "Flight not found");
   }
 
-  if (!data.response || data.response.length === 0) {
+  const flights = data.response || data;
+  const flightArray = Array.isArray(flights) ? flights : [flights];
+
+  if (flightArray.length === 0 || !flightArray[0]) {
     return null;
   }
 
-  const flight = data.response[0];
+  const flight = flightArray[0];
 
   return {
     flightNumber: flight.flight_iata || flightNumber,
