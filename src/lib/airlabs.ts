@@ -91,7 +91,9 @@ function computeUTCDateTime(dateStr: string, localTimeStr: string, utcTimeStr: s
     return `${dateStr}T00:00:00Z`;
   }
 
-  const offsetMinutes = (local.hours * 60 + local.minutes) - (utc.hours * 60 + utc.minutes);
+  let offsetMinutes = (local.hours * 60 + local.minutes) - (utc.hours * 60 + utc.minutes);
+  if (offsetMinutes > 12 * 60) offsetMinutes -= 24 * 60;
+  if (offsetMinutes < -12 * 60) offsetMinutes += 24 * 60;
 
   const localAsUTC = Date.UTC(
     parseInt(dateStr.split("-")[0], 10),
@@ -168,20 +170,12 @@ async function fetchSchedule(
 
     if (!depUTCMatch || !arrUTCMatch) return null;
 
-    const depUTCDate = new Date(Date.UTC(
-      parseInt(depUTCMatch[1], 10), parseInt(depUTCMatch[2], 10) - 1,
-      parseInt(depUTCMatch[3], 10), parseInt(depUTCMatch[4], 10), parseInt(depUTCMatch[5], 10)
-    ));
-
-    const arrUTCDate = new Date(Date.UTC(
-      parseInt(arrUTCMatch[1], 10), parseInt(arrUTCMatch[2], 10) - 1,
-      parseInt(arrUTCMatch[3], 10), parseInt(arrUTCMatch[4], 10), parseInt(arrUTCMatch[5], 10)
-    ));
-
     const depTime = schedule.dep_time || `${depUTCMatch[4]}:${depUTCMatch[5]}`;
     const arrTime = schedule.arr_time || `${arrUTCMatch[4]}:${arrUTCMatch[5]}`;
+    const depUTCTimeOfDay = `${depUTCMatch[4]}:${depUTCMatch[5]}`;
+    const arrUTCTimeOfDay = `${arrUTCMatch[4]}:${arrUTCMatch[5]}`;
 
-    const depDate = schedule.dep_date || date;
+    const depDate = date;
     const arrDate = computeArrivalDate(depDate, depTime, arrTime, schedule.duration);
 
     return {
@@ -189,8 +183,8 @@ async function fetchSchedule(
       arrTime,
       depDate,
       arrDate,
-      depUTC: depUTCDate.toISOString(),
-      arrUTC: arrUTCDate.toISOString(),
+      depUTC: computeUTCDateTime(depDate, depTime, depUTCTimeOfDay),
+      arrUTC: computeUTCDateTime(arrDate, arrTime, arrUTCTimeOfDay),
       duration: schedule.duration,
     };
   } catch {
