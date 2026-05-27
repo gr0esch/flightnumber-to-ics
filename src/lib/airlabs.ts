@@ -32,9 +32,18 @@ export interface FlightInfo {
   duration?: number;
 }
 
+function pad(n: number): string {
+  return n.toString().padStart(2, "0");
+}
+
+function buildLocalDateTime(dateStr: string, timeStr: string): string {
+  const time = extractTimeFromAPI(timeStr);
+  if (!time) return `${dateStr}T00:00`;
+  return `${dateStr}T${pad(time.hours)}:${pad(time.minutes)}`;
+}
+
 function extractTimeFromAPI(timeStr: string): { hours: number; minutes: number } | null {
   if (!timeStr) return null;
-
   const match = timeStr.match(/(\d{2}):(\d{2})/);
   if (match) {
     return { hours: parseInt(match[1], 10), minutes: parseInt(match[2], 10) };
@@ -42,74 +51,26 @@ function extractTimeFromAPI(timeStr: string): { hours: number; minutes: number }
   return null;
 }
 
-function getUTCOffsetForTimezone(timezone: string, date: Date): number {
-  try {
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      hour12: false,
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-    });
-    const parts = formatter.formatToParts(date);
-    const hourPart = parts.find((p) => p.type === "hour");
-    const utcHour = date.getUTCHours();
-    let localHour = hourPart ? parseInt(hourPart.value, 10) : utcHour;
-
-    if (localHour === 24) localHour = 0;
-
-    let offset = localHour - utcHour;
-    if (offset > 12) offset -= 24;
-    if (offset < -12) offset += 24;
-
-    return offset;
-  } catch {
-    return 0;
-  }
-}
-
-function computeLocalDateTime(
-  apiTimeStr: string,
-  timezone: string,
-  searchedDate: string
-): string {
-  const time = extractTimeFromAPI(apiTimeStr);
-  if (!time) {
-    return `${searchedDate}T00:00`;
-  }
-
-  const depDate = new Date(`${searchedDate}T00:00:00Z`);
-  const offset = getUTCOffsetForTimezone(timezone, depDate);
-
-  const localHours = time.hours;
-  const localMinutes = time.minutes;
-
-  const pad = (n: number) => n.toString().padStart(2, "0");
-
-  return `${searchedDate}T${pad(localHours)}:${pad(localMinutes)}`;
-}
-
-function computeArrivalLocalDateTime(
-  apiTimeStr: string,
-  timezone: string,
-  searchedDate: string,
-  durationMinutes?: number
-): string {
-  const time = extractTimeFromAPI(apiTimeStr);
-  if (!time) {
-    return `${searchedDate}T00:00`;
-  }
-
-  let arrivalDate = searchedDate;
-
+function computeArrivalDate(depDate: string, depTimeStr: string, arrTimeStr: string, durationMinutes?: number): string {
   if (durationMinutes && durationMinutes > 600) {
-    const dep = new Date(`${searchedDate}T00:00:00Z`);
-    dep.setUTCDate(dep.getUTCDate() + 1);
-    arrivalDate = dep.toISOString().split("T")[0];
+    const d = new Date(`${depDate}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().split("T")[0];
   }
 
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${arrivalDate}T${pad(time.hours)}:${pad(time.minutes)}`;
+  const depTime = extractTimeFromAPI(depTimeStr);
+  const arrTime = extractTimeFromAPI(arrTimeStr);
+  if (depTime && arrTime) {
+    const depMinutes = depTime.hours * 60 + depTime.minutes;
+    const arrMinutes = arrTime.hours * 60 + arrTime.minutes;
+    if (arrMinutes < depMinutes) {
+      const d = new Date(`${depDate}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().split("T")[0];
+    }
+  }
+
+  return depDate;
 }
 
 export async function getFlightInfo(
@@ -121,69 +82,74 @@ export async function getFlightInfo(
     throw new Error("AIRLABS_API_KEY is not configured");
   }
 
-  const url = `${AIRLABS_BASE_URL}/flight?flight_iata=${encodeURIComponent(flightNumber)}&api_key=${apiKey}`;
+  const [flightRes, scheduleRes] = await Promise.all([
+    fetch(
+      `${AIRLABS_BASE_URL}/flight?flight_iata=${encodeURIComponent(flightNumber)}&api_key=${apiKey}`,
+      { next: { revalidate: 60 } }
+    ),
+    fetch(
+      `${AIRLABS_BASE_URL}/schedules?flight_iata=${encodeURIComponent(flightNumber)}&date=${date}&api_key=${apiKey}`,
+      { next: { revalidate: 3600 } }
+    ),
+  ]);
 
-  const response = await fetch(url, {
-    next: { revalidate: 60 },
-  });
-
-  if (!response.ok) {
-    throw new Error(`AirLabs API error: ${response.statusText}`);
+  if (!flightRes.ok) {
+    throw new Error(`AirLabs API error: ${flightRes.statusText}`);
   }
 
-  const data = await response.json();
-
-  if (data.error) {
-    throw new Error(data.error.message || "Flight not found");
+  const flightData = await flightRes.json();
+  if (flightData.error) {
+    throw new Error(flightData.error.message || "Flight not found");
   }
 
-  const flights = data.response || data;
-  const flightArray = Array.isArray(flights) ? flights : [flights];
-
-  if (flightArray.length === 0 || !flightArray[0]) {
-    return null;
-  }
-
+  const flightArray = Array.isArray(flightData.response) ? flightData.response : [flightData.response];
   const flight = flightArray[0];
+  if (!flight) return null;
 
-  const depTimezone = flight.dep_timezone || "UTC";
-  const arrTimezone = flight.arr_timezone || "UTC";
+  let schedule: any = null;
+  if (scheduleRes.ok) {
+    const scheduleData = await scheduleRes.json();
+    if (!scheduleData.error && scheduleData.response) {
+      const scheduleArray = Array.isArray(scheduleData.response) ? scheduleData.response : [scheduleData.response];
+      schedule = scheduleArray.find(
+        (s: any) => s.dep_iata === flight.dep_iata && s.arr_iata === flight.arr_iata
+      ) || scheduleArray[0];
+    }
+  }
 
-  const depLocalDateTime = computeLocalDateTime(
-    flight.dep_time || flight.dep_scheduled || "",
-    depTimezone,
-    date
-  );
+  const source = schedule || flight;
 
-  const arrLocalDateTime = computeArrivalLocalDateTime(
-    flight.arr_time || flight.arr_scheduled || "",
-    arrTimezone,
-    date,
-    flight.duration
-  );
+  const depTimezone = source.dep_timezone || flight.dep_timezone || "UTC";
+  const arrTimezone = source.arr_timezone || flight.arr_timezone || "UTC";
+
+  const depScheduledTime = source.dep_time || source.dep_scheduled || flight.dep_time || flight.dep_scheduled || "";
+  const arrScheduledTime = source.arr_time || source.arr_scheduled || flight.arr_time || flight.arr_scheduled || "";
+
+  const depDate = schedule ? schedule.dep_date || date : date;
+  const arrDate = computeArrivalDate(depDate, depScheduledTime, arrScheduledTime, source.duration || flight.duration);
 
   return {
     flightNumber: flight.flight_iata || flightNumber,
     airline: {
-      name: flight.airline_name || "",
-      iata: flight.airline_iata || "",
-      icao: flight.airline_icao || "",
+      name: flight.airline_name || source.airline_name || "",
+      iata: flight.airline_iata || source.airline_iata || "",
+      icao: flight.airline_icao || source.airline_icao || "",
     },
     departure: {
-      airport: flight.dep_name || "",
-      iata: flight.dep_iata || "",
-      icao: flight.dep_icao || "",
-      scheduledTime: flight.dep_time || flight.dep_scheduled || "",
+      airport: flight.dep_name || source.dep_name || "",
+      iata: flight.dep_iata || source.dep_iata || "",
+      icao: flight.dep_icao || source.dep_icao || "",
+      scheduledTime: depScheduledTime,
       timezone: depTimezone,
-      localDateTime: depLocalDateTime,
+      localDateTime: buildLocalDateTime(depDate, depScheduledTime),
     },
     arrival: {
-      airport: flight.arr_name || "",
-      iata: flight.arr_iata || "",
-      icao: flight.arr_icao || "",
-      scheduledTime: flight.arr_time || flight.arr_scheduled || "",
+      airport: flight.arr_name || source.arr_name || "",
+      iata: flight.arr_iata || source.arr_iata || "",
+      icao: flight.arr_icao || source.arr_icao || "",
+      scheduledTime: arrScheduledTime,
       timezone: arrTimezone,
-      localDateTime: arrLocalDateTime,
+      localDateTime: buildLocalDateTime(arrDate, arrScheduledTime),
     },
     aircraft: flight.aircraft_icao
       ? {
@@ -193,7 +159,7 @@ export async function getFlightInfo(
         }
       : undefined,
     status: flight.status || "scheduled",
-    duration: flight.duration || undefined,
+    duration: source.duration || flight.duration || undefined,
   };
 }
 
