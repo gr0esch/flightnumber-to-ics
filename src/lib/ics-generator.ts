@@ -8,39 +8,32 @@ export interface ICSFlightData {
     iata: string;
     time: string;
     timezone: string;
+    utcTime: string;
   };
   arrival: {
     airport: string;
     iata: string;
     time: string;
     timezone: string;
+    utcTime: string;
   };
   aircraft?: string;
   status?: string;
 }
 
-function localTimeToUTC(localTimeStr: string, timezone: string): Date {
-  const [datePart, timePart] = localTimeStr.split("T");
-  if (!datePart || !timePart) {
-    return new Date(localTimeStr);
+function utcStringToDate(utcTimeStr: string): Date {
+  const match = utcTimeStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute] = match;
+    return new Date(Date.UTC(
+      parseInt(year, 10),
+      parseInt(month, 10) - 1,
+      parseInt(day, 10),
+      parseInt(hour, 10),
+      parseInt(minute, 10)
+    ));
   }
-
-  const [year, month, day] = datePart.split("-").map(Number);
-  const [hours, minutes] = timePart.split(":").map(Number);
-
-  const refUTC = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-
-  const tzHourStr = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hourCycle: "h23",
-    hour: "numeric",
-  }).format(refUTC);
-
-  const tzHour = parseInt(tzHourStr, 10);
-  const offsetHours = tzHour - 12;
-
-  const localAsUTC = Date.UTC(year, month - 1, day, hours, minutes);
-  return new Date(localAsUTC - offsetHours * 60 * 60 * 1000);
+  return new Date(utcTimeStr);
 }
 
 export function generateICS(data: ICSFlightData): string {
@@ -49,8 +42,8 @@ export function generateICS(data: ICSFlightData): string {
     prodId: "-//Flight ICS Generator//EN",
   });
 
-  const depTime = localTimeToUTC(data.departure.time, data.departure.timezone);
-  const arrTime = localTimeToUTC(data.arrival.time, data.arrival.timezone);
+  const depTime = utcStringToDate(data.departure.utcTime);
+  const arrTime = utcStringToDate(data.arrival.utcTime);
 
   const description = [
     `Flight: ${data.flightNumber}`,
@@ -59,11 +52,11 @@ export function generateICS(data: ICSFlightData): string {
     ``,
     `Departure:`,
     `  Airport: ${data.departure.airport} (${data.departure.iata})`,
-    `  Time: ${depTime.toLocaleString()} (${data.departure.timezone})`,
+    `  Local Time: ${depTime.toLocaleString()} (${data.departure.timezone})`,
     ``,
     `Arrival:`,
     `  Airport: ${data.arrival.airport} (${data.arrival.iata})`,
-    `  Time: ${arrTime.toLocaleString()} (${data.arrival.timezone})`,
+    `  Local Time: ${arrTime.toLocaleString()} (${data.arrival.timezone})`,
     ``,
     data.aircraft ? `Aircraft: ${data.aircraft}` : "",
     data.status ? `Status: ${data.status}` : "",
@@ -79,7 +72,7 @@ export function generateICS(data: ICSFlightData): string {
     location: `${data.departure.airport} (${data.departure.iata})`,
   });
 
-  event.id(`flight-${data.flightNumber}-${data.departure.time}@flight-ics`);
+  event.id(`flight-${data.flightNumber}-${data.departure.utcTime}@flight-ics`);
 
   return calendar.toString();
 }

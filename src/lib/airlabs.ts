@@ -14,6 +14,7 @@ export interface FlightInfo {
     scheduledTime: string;
     timezone: string;
     localDateTime: string;
+    utcDateTime: string;
   };
   arrival: {
     airport: string;
@@ -22,6 +23,7 @@ export interface FlightInfo {
     scheduledTime: string;
     timezone: string;
     localDateTime: string;
+    utcDateTime: string;
   };
   aircraft?: {
     iata: string;
@@ -73,6 +75,32 @@ function computeArrivalDate(depDate: string, depTimeStr: string, arrTimeStr: str
   return depDate;
 }
 
+function parseUTCDateTime(utcStr: string): string | null {
+  if (!utcStr) return null;
+  const match = utcStr.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (match) {
+    const [, year, month, day, hour, minute] = match;
+    return `${year}-${month}-${day}T${hour}:${minute}`;
+  }
+  return null;
+}
+
+async function getAirportTimezone(iata: string, apiKey: string): Promise<string | null> {
+  try {
+    const url = `${AIRLABS_BASE_URL}/airports?iata_code=${encodeURIComponent(iata)}&api_key=${apiKey}`;
+    const response = await fetch(url, { next: { revalidate: 3600 } });
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data.response && data.response.length > 0) {
+      return data.response[0].timezone || null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export async function getFlightInfo(
   flightNumber: string,
   date: string
@@ -117,8 +145,8 @@ export async function getFlightInfo(
     }
   }
 
-  const depTimezone = flight.dep_timezone || "UTC";
-  const arrTimezone = flight.arr_timezone || "UTC";
+  const depIata = flight.dep_iata || schedule?.dep_iata || "";
+  const arrIata = flight.arr_iata || schedule?.arr_iata || "";
 
   const depScheduledTime = schedule
     ? schedule.dep_time || schedule.dep_scheduled || flight.dep_time || flight.dep_scheduled || ""
@@ -130,6 +158,17 @@ export async function getFlightInfo(
   const depDate = schedule ? schedule.dep_date || date : date;
   const arrDate = computeArrivalDate(depDate, depScheduledTime, arrScheduledTime, schedule?.duration || flight.duration);
 
+  const depTimezone = flight.dep_timezone || schedule?.dep_timezone || null;
+  const arrTimezone = flight.arr_timezone || schedule?.arr_timezone || null;
+
+  const [finalDepTz, finalArrTz] = await Promise.all([
+    depTimezone && depTimezone !== "UTC" ? Promise.resolve(depTimezone) : getAirportTimezone(depIata, apiKey),
+    arrTimezone && arrTimezone !== "UTC" ? Promise.resolve(arrTimezone) : getAirportTimezone(arrIata, apiKey),
+  ]);
+
+  const depUTC = parseUTCDateTime(flight.dep_time_utc) || `${depDate}T${extractTimeFromAPI(depScheduledTime)?.hours.toString().padStart(2, "0")}:${extractTimeFromAPI(depScheduledTime)?.minutes.toString().padStart(2, "0")}`;
+  const arrUTC = parseUTCDateTime(flight.arr_time_utc) || `${arrDate}T${extractTimeFromAPI(arrScheduledTime)?.hours.toString().padStart(2, "0")}:${extractTimeFromAPI(arrScheduledTime)?.minutes.toString().padStart(2, "0")}`;
+
   return {
     flightNumber: flight.flight_iata || flightNumber,
     airline: {
@@ -138,20 +177,22 @@ export async function getFlightInfo(
       icao: flight.airline_icao || "",
     },
     departure: {
-      airport: flight.dep_name || "",
-      iata: flight.dep_iata || "",
-      icao: flight.dep_icao || "",
+      airport: flight.dep_name || schedule?.dep_name || "",
+      iata: depIata,
+      icao: flight.dep_icao || schedule?.dep_icao || "",
       scheduledTime: depScheduledTime,
-      timezone: depTimezone,
+      timezone: finalDepTz || "UTC",
       localDateTime: buildLocalDateTime(depDate, depScheduledTime),
+      utcDateTime: depUTC,
     },
     arrival: {
-      airport: flight.arr_name || "",
-      iata: flight.arr_iata || "",
-      icao: flight.arr_icao || "",
+      airport: flight.arr_name || schedule?.arr_name || "",
+      iata: arrIata,
+      icao: flight.arr_icao || schedule?.arr_icao || "",
       scheduledTime: arrScheduledTime,
-      timezone: arrTimezone,
+      timezone: finalArrTz || "UTC",
       localDateTime: buildLocalDateTime(arrDate, arrScheduledTime),
+      utcDateTime: arrUTC,
     },
     aircraft: flight.aircraft_icao
       ? {
