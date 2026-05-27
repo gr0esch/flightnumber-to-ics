@@ -32,10 +32,10 @@ export function FlightResult({
   downloadError,
 }: FlightResultProps) {
   const [departureTime, setDepartureTime] = useState(
-    flightInfo.departure.scheduledTime || ""
+    flightInfo.departure.localDateTime || ""
   );
   const [arrivalTime, setArrivalTime] = useState(
-    flightInfo.arrival.scheduledTime || ""
+    flightInfo.arrival.localDateTime || ""
   );
 
   const handleDownload = () => {
@@ -76,6 +76,8 @@ export function FlightResult({
             />
             <p className="text-sm text-muted-foreground">
               {flightInfo.departure.airport} ({flightInfo.departure.iata})
+              <br />
+              <span className="text-xs">Local time ({flightInfo.departure.timezone})</span>
             </p>
           </div>
           <div className="space-y-2">
@@ -87,6 +89,8 @@ export function FlightResult({
             />
             <p className="text-sm text-muted-foreground">
               {flightInfo.arrival.airport} ({flightInfo.arrival.iata})
+              <br />
+              <span className="text-xs">Local time ({flightInfo.arrival.timezone})</span>
             </p>
           </div>
         </div>

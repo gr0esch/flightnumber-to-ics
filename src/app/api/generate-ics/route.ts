@@ -12,11 +12,13 @@ export async function POST(request: NextRequest) {
         airport: body.departure.airport,
         iata: body.departure.iata,
         time: body.departure.time,
+        timezone: body.departure.timezone || "UTC",
       },
       arrival: {
         airport: body.arrival.airport,
         iata: body.arrival.iata,
         time: body.arrival.time,
+        timezone: body.arrival.timezone || "UTC",
       },
       aircraft: body.aircraft,
       status: body.status,

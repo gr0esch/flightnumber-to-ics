@@ -62,11 +62,13 @@ export default function Home() {
             airport: flightInfo.departure.airport,
             iata: flightInfo.departure.iata,
             time: departureTime,
+            timezone: flightInfo.departure.timezone,
           },
           arrival: {
             airport: flightInfo.arrival.airport,
             iata: flightInfo.arrival.iata,
             time: arrivalTime,
+            timezone: flightInfo.arrival.timezone,
           },
           aircraft: flightInfo.aircraft?.icao,
           status: flightInfo.status,
