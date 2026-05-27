@@ -13,14 +13,12 @@ export async function POST(request: NextRequest) {
         iata: body.departure.iata,
         time: body.departure.time,
         timezone: body.departure.timezone || "UTC",
-        utcTime: body.departure.utcTime,
       },
       arrival: {
         airport: body.arrival.airport,
         iata: body.arrival.iata,
         time: body.arrival.time,
         timezone: body.arrival.timezone || "UTC",
-        utcTime: body.arrival.utcTime,
       },
       aircraft: body.aircraft,
       status: body.status,
@@ -28,8 +26,8 @@ export async function POST(request: NextRequest) {
 
     if (
       !icsData.flightNumber ||
-      !icsData.departure.utcTime ||
-      !icsData.arrival.utcTime
+      !icsData.departure.time ||
+      !icsData.arrival.time
     ) {
       return NextResponse.json(
         { error: "Missing required fields" },

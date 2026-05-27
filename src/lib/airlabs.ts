@@ -14,7 +14,6 @@ export interface FlightInfo {
     scheduledTime: string;
     timezone: string;
     localDateTime: string;
-    utcDateTime: string;
   };
   arrival: {
     airport: string;
@@ -23,7 +22,6 @@ export interface FlightInfo {
     scheduledTime: string;
     timezone: string;
     localDateTime: string;
-    utcDateTime: string;
   };
   aircraft?: {
     iata: string;
@@ -75,14 +73,28 @@ function computeArrivalDate(depDate: string, depTimeStr: string, arrTimeStr: str
   return depDate;
 }
 
-function parseUTCDateTime(utcStr: string): string | null {
-  if (!utcStr) return null;
-  const match = utcStr.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-  if (match) {
-    const [, year, month, day, hour, minute] = match;
-    return `${year}-${month}-${day}T${hour}:${minute}`;
-  }
-  return null;
+function localToUTC(localDateTime: string, timezone: string): string {
+  const [datePart, timePart] = localDateTime.split("T");
+  if (!datePart || !timePart) return localDateTime;
+
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hours, minutes] = timePart.split(":").map(Number);
+
+  const refUTC = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  const tzHourStr = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hourCycle: "h23",
+    hour: "numeric",
+  }).format(refUTC);
+
+  const tzHour = parseInt(tzHourStr, 10);
+  const offsetHours = tzHour - 12;
+
+  const localAsUTC = Date.UTC(year, month - 1, day, hours, minutes);
+  const correctUTC = new Date(localAsUTC - offsetHours * 60 * 60 * 1000);
+
+  return correctUTC.toISOString().replace(/\.\d{3}Z$/, "").replace("T", " ");
 }
 
 async function getAirportTimezone(iata: string, apiKey: string): Promise<string | null> {
@@ -148,16 +160,6 @@ export async function getFlightInfo(
   const depIata = flight.dep_iata || schedule?.dep_iata || "";
   const arrIata = flight.arr_iata || schedule?.arr_iata || "";
 
-  const depScheduledTime = schedule
-    ? schedule.dep_time || schedule.dep_scheduled || flight.dep_time || flight.dep_scheduled || ""
-    : flight.dep_time || flight.dep_scheduled || "";
-  const arrScheduledTime = schedule
-    ? schedule.arr_time || schedule.arr_scheduled || flight.arr_time || flight.arr_scheduled || ""
-    : flight.arr_time || flight.arr_scheduled || "";
-
-  const depDate = schedule ? schedule.dep_date || date : date;
-  const arrDate = computeArrivalDate(depDate, depScheduledTime, arrScheduledTime, schedule?.duration || flight.duration);
-
   const depTimezone = flight.dep_timezone || schedule?.dep_timezone || null;
   const arrTimezone = flight.arr_timezone || schedule?.arr_timezone || null;
 
@@ -166,8 +168,58 @@ export async function getFlightInfo(
     arrTimezone && arrTimezone !== "UTC" ? Promise.resolve(arrTimezone) : getAirportTimezone(arrIata, apiKey),
   ]);
 
-  const depUTC = parseUTCDateTime(flight.dep_time_utc) || `${depDate}T${extractTimeFromAPI(depScheduledTime)?.hours.toString().padStart(2, "0")}:${extractTimeFromAPI(depScheduledTime)?.minutes.toString().padStart(2, "0")}`;
-  const arrUTC = parseUTCDateTime(flight.arr_time_utc) || `${arrDate}T${extractTimeFromAPI(arrScheduledTime)?.hours.toString().padStart(2, "0")}:${extractTimeFromAPI(arrScheduledTime)?.minutes.toString().padStart(2, "0")}`;
+  let depScheduledTime: string;
+  let arrScheduledTime: string;
+  let depDate: string;
+  let arrDate: string;
+
+  if (schedule && schedule.dep_time_utc && schedule.arr_time_utc) {
+    const depUTC = schedule.dep_time_utc;
+    const arrUTC = schedule.arr_time_utc;
+
+    const depMatch = depUTC.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+    const arrMatch = arrUTC.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+
+    if (depMatch && arrMatch) {
+      const depUTCDate = new Date(Date.UTC(
+        parseInt(depMatch[1], 10), parseInt(depMatch[2], 10) - 1,
+        parseInt(depMatch[3], 10), parseInt(depMatch[4], 10), parseInt(depMatch[5], 10)
+      ));
+
+      const arrUTCDate = new Date(Date.UTC(
+        parseInt(arrMatch[1], 10), parseInt(arrMatch[2], 10) - 1,
+        parseInt(arrMatch[3], 10), parseInt(arrMatch[4], 10), parseInt(arrMatch[5], 10)
+      ));
+
+      const depLocalStr = depUTCDate.toLocaleString("en-CA", { timeZone: finalDepTz || "UTC", hour12: false });
+      const arrLocalStr = arrUTCDate.toLocaleString("en-CA", { timeZone: finalArrTz || "UTC", hour12: false });
+
+      const depLocalMatch = depLocalStr.match(/(\d{4})-(\d{2})-(\d{2}),\s+(\d{2}):(\d{2})/);
+      const arrLocalMatch = arrLocalStr.match(/(\d{4})-(\d{2})-(\d{2}),\s+(\d{2}):(\d{2})/);
+
+      if (depLocalMatch && arrLocalMatch) {
+        depDate = `${depLocalMatch[1]}-${depLocalMatch[2]}-${depLocalMatch[3]}`;
+        arrDate = `${arrLocalMatch[1]}-${arrLocalMatch[2]}-${arrLocalMatch[3]}`;
+        depScheduledTime = `${depLocalMatch[4]}:${depLocalMatch[5]}`;
+        arrScheduledTime = `${arrLocalMatch[4]}:${arrLocalMatch[5]}`;
+      } else {
+        depScheduledTime = schedule.dep_time || flight.dep_time || "";
+        arrScheduledTime = schedule.arr_time || flight.arr_time || "";
+        depDate = schedule.dep_date || date;
+        arrDate = computeArrivalDate(depDate, depScheduledTime, arrScheduledTime, schedule.duration || flight.duration);
+      }
+    } else {
+      depScheduledTime = schedule.dep_time || flight.dep_time || "";
+      arrScheduledTime = schedule.arr_time || flight.arr_time || "";
+      depDate = schedule.dep_date || date;
+      arrDate = computeArrivalDate(depDate, depScheduledTime, arrScheduledTime, schedule.duration || flight.duration);
+    }
+  } else {
+    depScheduledTime = schedule?.dep_time || flight.dep_time || "";
+    arrScheduledTime = schedule?.arr_time || flight.arr_time || "";
+    depDate = schedule?.dep_date || date;
+    arrDate = computeArrivalDate(depDate, depScheduledTime, arrScheduledTime, schedule?.duration || flight.duration);
+  }
 
   return {
     flightNumber: flight.flight_iata || flightNumber,
@@ -183,7 +235,6 @@ export async function getFlightInfo(
       scheduledTime: depScheduledTime,
       timezone: finalDepTz || "UTC",
       localDateTime: buildLocalDateTime(depDate, depScheduledTime),
-      utcDateTime: depUTC,
     },
     arrival: {
       airport: flight.arr_name || schedule?.arr_name || "",
@@ -192,7 +243,6 @@ export async function getFlightInfo(
       scheduledTime: arrScheduledTime,
       timezone: finalArrTz || "UTC",
       localDateTime: buildLocalDateTime(arrDate, arrScheduledTime),
-      utcDateTime: arrUTC,
     },
     aircraft: flight.aircraft_icao
       ? {
