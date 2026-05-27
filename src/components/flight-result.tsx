@@ -56,6 +56,23 @@ export function FlightResult({
     return date || "";
   };
 
+  const timezoneLabel = (localDT: string, utcDT?: string, tz?: string) => {
+    if (tz && tz !== "UTC") return tz;
+    if (!localDT || !utcDT) return tz || "local time";
+
+    const localMs = Date.parse(`${localDT}:00Z`);
+    const utcMs = Date.parse(utcDT);
+    if (isNaN(localMs) || isNaN(utcMs)) return tz || "local time";
+
+    const offsetMin = Math.round((localMs - utcMs) / 60000);
+    if (offsetMin === 0) return "UTC";
+    const sign = offsetMin >= 0 ? "+" : "-";
+    const abs = Math.abs(offsetMin);
+    const hh = String(Math.floor(abs / 60)).padStart(2, "0");
+    const mm = String(abs % 60).padStart(2, "0");
+    return `UTC${sign}${hh}:${mm}`;
+  };
+
   return (
     <div className="bg-surface-raised border border-border-subtle rounded-xl overflow-hidden shadow-sm">
       <div className="bg-brand/5 border-b border-border-subtle px-6 py-4">
@@ -112,7 +129,7 @@ export function FlightResult({
                 {flightInfo.departure.airport}
               </p>
               <p className="text-xs text-muted-foreground font-mono-alt">
-                {formatDate(departureTime)} · {formatTime(departureTime)} ({flightInfo.departure.timezone})
+                {formatDate(departureTime)} · {formatTime(departureTime)} ({timezoneLabel(initialDepartureTime, flightInfo.departure.utcDateTime, flightInfo.departure.timezone)})
               </p>
             </div>
           </div>
@@ -135,7 +152,7 @@ export function FlightResult({
                 {flightInfo.arrival.airport}
               </p>
               <p className="text-xs text-muted-foreground font-mono-alt">
-                {formatDate(arrivalTime)} · {formatTime(arrivalTime)} ({flightInfo.arrival.timezone})
+                {formatDate(arrivalTime)} · {formatTime(arrivalTime)} ({timezoneLabel(initialArrivalTime, flightInfo.arrival.utcDateTime, flightInfo.arrival.timezone)})
               </p>
             </div>
           </div>
