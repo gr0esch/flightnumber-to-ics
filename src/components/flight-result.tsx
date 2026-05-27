@@ -10,6 +10,8 @@ interface FlightResultProps {
   onDownloadICS: (data: {
     departureTime: string;
     arrivalTime: string;
+    departureUTC?: string;
+    arrivalUTC?: string;
   }) => void;
   isDownloading: boolean;
   downloadError: string | null;
@@ -21,17 +23,19 @@ export function FlightResult({
   isDownloading,
   downloadError,
 }: FlightResultProps) {
-  const [departureTime, setDepartureTime] = useState(
-    flightInfo.departure.localDateTime || ""
-  );
-  const [arrivalTime, setArrivalTime] = useState(
-    flightInfo.arrival.localDateTime || ""
-  );
+  const initialDepartureTime = flightInfo.departure.localDateTime || "";
+  const initialArrivalTime = flightInfo.arrival.localDateTime || "";
+  const [departureTime, setDepartureTime] = useState(initialDepartureTime);
+  const [arrivalTime, setArrivalTime] = useState(initialArrivalTime);
 
   const handleDownload = () => {
+    const departureUnedited = departureTime === initialDepartureTime;
+    const arrivalUnedited = arrivalTime === initialArrivalTime;
     onDownloadICS({
       departureTime,
       arrivalTime,
+      departureUTC: departureUnedited ? flightInfo.departure.utcDateTime : undefined,
+      arrivalUTC: arrivalUnedited ? flightInfo.arrival.utcDateTime : undefined,
     });
   };
 

@@ -14,6 +14,7 @@ export interface FlightInfo {
     scheduledTime: string;
     timezone: string;
     localDateTime: string;
+    utcDateTime?: string;
   };
   arrival: {
     airport: string;
@@ -22,6 +23,7 @@ export interface FlightInfo {
     scheduledTime: string;
     timezone: string;
     localDateTime: string;
+    utcDateTime?: string;
   };
   aircraft?: {
     iata: string;
@@ -327,6 +329,7 @@ export async function getFlightInfo(
       scheduledTime: depScheduledTime,
       timezone: finalDepTz || "UTC",
       localDateTime: buildLocalDateTime(depDate, depScheduledTime),
+      utcDateTime: depUTC || undefined,
     },
     arrival: {
       airport: flight.arr_name || "",
@@ -335,6 +338,7 @@ export async function getFlightInfo(
       scheduledTime: arrScheduledTime,
       timezone: finalArrTz || "UTC",
       localDateTime: buildLocalDateTime(arrDate, arrScheduledTime),
+      utcDateTime: arrUTC || undefined,
     },
     aircraft: flight.aircraft_icao
       ? {

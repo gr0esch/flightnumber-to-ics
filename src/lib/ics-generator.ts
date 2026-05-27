@@ -8,15 +8,25 @@ export interface ICSFlightData {
     iata: string;
     time: string;
     timezone: string;
+    utc?: string;
   };
   arrival: {
     airport: string;
     iata: string;
     time: string;
     timezone: string;
+    utc?: string;
   };
   aircraft?: string;
   status?: string;
+}
+
+function resolveEventTime(local: string, timezone: string, utc?: string): Date {
+  if (utc) {
+    const parsed = new Date(utc);
+    if (!isNaN(parsed.getTime())) return parsed;
+  }
+  return localToUTC(local, timezone);
 }
 
 function localToUTC(localDateTime: string, timezone: string): Date {
@@ -47,8 +57,8 @@ export function generateICS(data: ICSFlightData): string {
     prodId: "-//Flight ICS Generator//EN",
   });
 
-  const depTime = localToUTC(data.departure.time, data.departure.timezone);
-  const arrTime = localToUTC(data.arrival.time, data.arrival.timezone);
+  const depTime = resolveEventTime(data.departure.time, data.departure.timezone, data.departure.utc);
+  const arrTime = resolveEventTime(data.arrival.time, data.arrival.timezone, data.arrival.utc);
 
   const description = [
     `Flight: ${data.flightNumber}`,

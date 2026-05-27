@@ -42,9 +42,13 @@ export default function Home() {
   const handleDownloadICS = async ({
     departureTime,
     arrivalTime,
+    departureUTC,
+    arrivalUTC,
   }: {
     departureTime: string;
     arrivalTime: string;
+    departureUTC?: string;
+    arrivalUTC?: string;
   }) => {
     if (!flightInfo) return;
 
@@ -63,12 +67,14 @@ export default function Home() {
             iata: flightInfo.departure.iata,
             time: departureTime,
             timezone: flightInfo.departure.timezone,
+            utc: departureUTC,
           },
           arrival: {
             airport: flightInfo.arrival.airport,
             iata: flightInfo.arrival.iata,
             time: arrivalTime,
             timezone: flightInfo.arrival.timezone,
+            utc: arrivalUTC,
           },
           aircraft: flightInfo.aircraft?.icao,
           status: flightInfo.status,
