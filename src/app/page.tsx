@@ -98,31 +98,50 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-2xl mx-auto space-y-8">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">
-            Flight ICS Generator
+    <main className="min-h-screen bg-background relative overflow-hidden">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-brand-muted/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-accent-warm/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative max-w-xl mx-auto px-4 py-16 md:py-24">
+        <header className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface border border-border-subtle text-xs font-medium text-muted-foreground mb-6 font-mono-alt tracking-wide">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+            FLIGHT ICS GENERATOR
+          </div>
+          <h1 className="font-display text-4xl md:text-5xl font-semibold tracking-tight text-foreground mb-3">
+            Flight to Calendar
           </h1>
-          <p className="text-muted-foreground">
-            Enter a flight number and date to generate a calendar event
+          <p className="text-muted-foreground text-lg max-w-sm mx-auto leading-relaxed">
+            Enter a flight number and date to generate a downloadable calendar event
           </p>
+        </header>
+
+        <div className="bg-surface-raised border border-border-subtle rounded-xl p-6 md:p-8 shadow-sm">
+          <FlightForm
+            onSearch={handleSearch}
+            isLoading={isLoading}
+            error={error}
+          />
         </div>
 
-        <FlightForm
-          onSearch={handleSearch}
-          isLoading={isLoading}
-          error={error}
-        />
-
         {flightInfo && (
-          <FlightResult
-            flightInfo={flightInfo}
-            onDownloadICS={handleDownloadICS}
-            isDownloading={isDownloading}
-            downloadError={downloadError}
-          />
+          <div className="mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <FlightResult
+              flightInfo={flightInfo}
+              onDownloadICS={handleDownloadICS}
+              isDownloading={isDownloading}
+              downloadError={downloadError}
+            />
+          </div>
         )}
+
+        <footer className="mt-16 text-center">
+          <p className="text-xs text-muted-foreground font-mono-alt">
+            Powered by AirLabs API
+          </p>
+        </footer>
       </div>
     </main>
   );
