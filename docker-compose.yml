@@ -7,21 +7,15 @@ services:
       - AIRLABS_API_KEY=${AIRLABS_API_KEY}
       - NODE_ENV=production
     restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flight-ics.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.flight-ics.entrypoints=${TRAEFIK_ENTRYPOINTS:-websecure}"
+      - "traefik.http.routers.flight-ics.tls.certresolver=${TRAEFIK_CERTRESOLVER:-myresolver}"
+      - "traefik.http.services.flight-ics.loadbalancer.server.port=3000"
     networks:
-      - flight-ics-network
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - app
-    restart: unless-stopped
-    networks:
-      - flight-ics-network
+      - traefik-network
 
 networks:
-  flight-ics-network:
-    driver: bridge
+  traefik-network:
+    external: true

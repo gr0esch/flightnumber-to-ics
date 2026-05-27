@@ -44,17 +44,24 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Docker Deployment
 
+### Prerequisites
+
+- Traefik reverse proxy must be running with an external network named `traefik-network`
+
 ### Build and run with docker-compose
 
 ```bash
-# Create .env file with your API key
-echo "AIRLABS_API_KEY=your_key_here" > .env
+# Create .env file
+cat > .env << EOF
+AIRLABS_API_KEY=your_key_here
+DOMAIN=flight-ics.example.com
+TRAEFIK_ENTRYPOINTS=websecure
+TRAEFIK_CERTRESOLVER=myresolver
+EOF
 
 # Build and start
 docker compose up -d --build
 ```
-
-The app will be available at [http://localhost:80](http://localhost:80).
 
 ### Stop
 
@@ -67,7 +74,7 @@ docker compose down
 - **Frontend**: Next.js 14 (App Router) + shadcn/ui + Tailwind CSS
 - **API**: AirLabs (1,000 req/month free)
 - **ICS Generation**: ical-generator
-- **Deployment**: Docker + nginx reverse proxy
+- **Deployment**: Docker + Traefik reverse proxy
 
 ## API
 
